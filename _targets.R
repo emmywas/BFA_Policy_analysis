@@ -111,9 +111,14 @@ list(
   
   tar_target(
     b12_data,
-    make_sensitivity_data(range_SEV_B12, make_classification_b12_p1,clean_data,iso3c)
+    make_sensitivity_data(range_SEV_B12, make_classification_b12_p0,clean_data,iso3c)
   ),
-  
+ 
+  tar_target(
+    bf_p0_data,
+    make_sensitivity_data(range_BF, make_classification_bf_p0,clean_data,iso3c)
+  ),
+   
   tar_target(
     bf_p1_data,
     make_sensitivity_data(range_BF, make_classification_bf_p1,clean_data,iso3c)
@@ -173,7 +178,12 @@ list(
     b12_barplot_data,
     make_barplot_data(b12_data)
   ),
-  
+ 
+  tar_target(
+    bf_p0_barplot_data,
+    make_barplot_data(bf_p0_data)
+  ),
+   
   tar_target(
     bf_p1_barplot_data,
     make_barplot_data(bf_p1_data)
@@ -225,8 +235,13 @@ list(
   ),
   
   tar_target(
+    policy0_sensitivity,
+    make_policy0_sensitivity(b12_barplot_data,bf_p0_barplot_data)
+  ),
+  
+  tar_target(
     policy1_sensitivity,
-    make_policy1_sensitivity(omega3_barplot_data,b12_barplot_data,bf_p1_barplot_data)
+    make_policy1_sensitivity(omega3_barplot_data,bf_p1_barplot_data)
   ),
   
   tar_target(
