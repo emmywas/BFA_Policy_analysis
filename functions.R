@@ -137,7 +137,7 @@ wrangle_data<-function(data_list,meat_list){
   
   clean_data<-data_list[[1]] %>% 
     full_join(data_list[[2]]) %>% 
-    #select(!'X1') %>% 
+    select(!'...1') %>% 
     full_join(data_list[[5]]) %>%
     select(!'...1') %>% 
     full_join(data_list[[6]]) %>% 
@@ -180,10 +180,14 @@ assigning_recommendation<-function(clean_data){
   
   #Policy inclusion criteria
   #**************************
-  #Policy 1 - (only full exists)
+  #NEED TO UPDATE COMMENTS ----
+  #Policy 0 - 
+  #SEV_vitB12 AND (prod_kgpercap_year OR import_kg_percap_year)
+  
+  #Policy 1 - 
   #(SEV_omega3 OR SEV_vitB12)  AND (prod_kgpercap_year OR import_kg_percap_year)
   
-  # Policy 2 (only full exists)
+  # Policy 2
   # red_meat_gcapday
   
   #Policy 3 - full inclusion with AND, partial with OR
@@ -227,7 +231,7 @@ assigning_recommendation<-function(clean_data){
   #  xlab("Countries")
   
   
-  
+  #Update from review process - split omega and b12 into two separate policies.For minimal changes - calling new policy = policy 0  
   policy_data<-clean_data %>% 
     mutate(bf_availability_kgcap_year=prod_kgpercap_year + import_kg_percap_year) %>% 
     mutate(SEV_omega3_inclusion = case_when((SEV_omega3 >= 10) ~ 1,
@@ -261,13 +265,21 @@ assigning_recommendation<-function(clean_data){
                                          (ssp585_2050 < 50) ~ 0,
                                          TRUE~NA_real_)) %>%
     rowwise() %>% 
-    mutate(SEV_inclusion = case_when((SEV_B12_inclusion==1 & SEV_omega3_inclusion==1)~2,
-                                     (SEV_B12_inclusion==1 | SEV_omega3_inclusion==1)~1,
-                                     (SEV_B12_inclusion==0 & SEV_omega3_inclusion==0)~0,
-                                     TRUE~NA_real_)) %>% 
-    mutate(policy_1=case_when((SEV_inclusion>0 & availability_inclusion ==1) ~"highly_relevant",
-                              (SEV_inclusion>0 & availability_inclusion !=1) ~"relevant",
-                              (SEV_inclusion==0) ~ "less_relevant",
+    #mutate(SEV_inclusion = case_when((SEV_B12_inclusion==1 & SEV_omega3_inclusion==1)~2,
+    #                                 (SEV_B12_inclusion==1 | SEV_omega3_inclusion==1)~1,
+    #                                 (SEV_B12_inclusion==0 & SEV_omega3_inclusion==0)~0,
+    #                                 TRUE~NA_real_)) %>% 
+    #mutate(policy_1=case_when((SEV_inclusion>0 & availability_inclusion ==1) ~"highly_relevant", #OLD policy 1 where nutrients were combined
+    #                          (SEV_inclusion>0 & availability_inclusion !=1) ~"relevant",
+    #                          (SEV_inclusion==0) ~ "less_relevant",
+    #                          TRUE ~"missing_data")) %>% 
+    mutate(policy_0=case_when((SEV_B12_inclusion==1 & availability_inclusion ==1) ~"highly_relevant",
+                              (SEV_B12_inclusion==1 & availability_inclusion !=1) ~"relevant",
+                              (SEV_B12_inclusion==0 ) ~ "less_relevant",
+                              TRUE ~"missing_data")) %>% 
+    mutate(policy_1=case_when((SEV_omega3_inclusion==1 & availability_inclusion ==1) ~"highly_relevant",
+                              (SEV_omega3_inclusion==1 & availability_inclusion !=1) ~"relevant",
+                              (SEV_omega3_inclusion==0) ~ "less_relevant",
                               TRUE ~"missing_data")) %>% 
     mutate(policy_2=case_when((red_meat_inclusion==1 & daly_inclusion==1 & availability_inclusion==1) ~"highly_relevant",
                               (red_meat_inclusion==1 & daly_inclusion==1 & availability_inclusion!=1) ~"relevant",
@@ -326,7 +338,7 @@ summarising_policy<-function(policy_recommendation_data){
   
   policy_summary<-policy_recommendation_data %>%
     mutate(country_name=countrycode(iso3c,origin = "iso3c",destination = "country.name")) %>% 
-    select(iso3c,country_name,policy_1,policy_2,policy_3,policy_4) %>% 
+    select(iso3c,country_name,policy_0,policy_1,policy_2,policy_3,policy_4) %>% 
     unique()
   
   return(policy_summary)
@@ -335,7 +347,9 @@ summarising_policy<-function(policy_recommendation_data){
 #Calculating policy salience
 calc_policy_salience<-function(policy_summary){
   
-  salience_data<-policy_summary %>%  
+  salience_data<-policy_summary %>% 
+    mutate(overal_relevant_policy0=as.factor(case_when((policy_0=="highly_relevant"|policy_0=="relevant")~"relevant",
+                                                       TRUE~policy_0))) %>%
     mutate(overal_relevant_policy1=as.factor(case_when((policy_1=="highly_relevant"|policy_1=="relevant")~"relevant",
                                                        TRUE~policy_1))) %>% 
     mutate(overal_relevant_policy2=as.factor(case_when((policy_2=="highly_relevant"|policy_2=="relevant")~"relevant",
@@ -344,7 +358,19 @@ calc_policy_salience<-function(policy_summary){
                                                        TRUE~policy_3))) %>% 
     mutate(overal_relevant_policy4=as.factor(case_when((policy_4=="highly_relevant"|policy_4=="relevant")~"relevant",
                                                        TRUE~policy_4))) %>% 
+    mutate(policy0_policy0=case_when(overal_relevant_policy0=="relevant"~1,
+                                     TRUE~0)) %>% 
+    mutate(policy0_policy1=case_when((overal_relevant_policy0=="relevant" & overal_relevant_policy1=="relevant")~1, 
+                                     TRUE~0)) %>% 
+    mutate(policy0_policy2=case_when((overal_relevant_policy0=="relevant" & overal_relevant_policy2=="relevant")~1, 
+                                     TRUE~0)) %>% 
+    mutate(policy0_policy3=case_when((overal_relevant_policy0=="relevant" & overal_relevant_policy3=="relevant")~1, 
+                                     TRUE~0)) %>% 
+    mutate(policy0_policy4=case_when((overal_relevant_policy0=="relevant" & overal_relevant_policy4=="relevant")~1, 
+                                     TRUE~0)) %>% 
     mutate(policy1_policy1=case_when(overal_relevant_policy1=="relevant"~1,
+                                     TRUE~0)) %>% 
+    mutate(policy1_policy0=case_when((overal_relevant_policy1=="relevant" & overal_relevant_policy0=="relevant")~1, 
                                      TRUE~0)) %>% 
     mutate(policy1_policy2=case_when((overal_relevant_policy1=="relevant" & overal_relevant_policy2=="relevant")~1, 
                                      TRUE~0)) %>% 
@@ -354,6 +380,8 @@ calc_policy_salience<-function(policy_summary){
                                      TRUE~0)) %>% 
     mutate(policy2_policy2=case_when(overal_relevant_policy2=="relevant"~1,
                                      TRUE~0)) %>% 
+    mutate(policy2_policy0=case_when((overal_relevant_policy2=="relevant" & overal_relevant_policy0=="relevant")~1, 
+                                     TRUE~0)) %>% 
     mutate(policy2_policy1=case_when((overal_relevant_policy2=="relevant" & overal_relevant_policy1=="relevant")~1, 
                                      TRUE~0)) %>% 
     mutate(policy2_policy3=case_when((overal_relevant_policy2=="relevant" & overal_relevant_policy3=="relevant")~1, 
@@ -362,6 +390,8 @@ calc_policy_salience<-function(policy_summary){
                                      TRUE~0)) %>% 
     mutate(policy3_policy3=case_when(overal_relevant_policy3=="relevant"~1,
                                      TRUE~0)) %>% 
+    mutate(policy3_policy0=case_when((overal_relevant_policy3=="relevant" & overal_relevant_policy0=="relevant")~1, 
+                                     TRUE~0)) %>% 
     mutate(policy3_policy1=case_when((overal_relevant_policy3=="relevant" & overal_relevant_policy1=="relevant")~1, 
                                      TRUE~0)) %>% 
     mutate(policy3_policy2=case_when((overal_relevant_policy3=="relevant" & overal_relevant_policy2=="relevant")~1, 
@@ -369,6 +399,8 @@ calc_policy_salience<-function(policy_summary){
     mutate(policy3_policy4=case_when((overal_relevant_policy3=="relevant" & overal_relevant_policy4=="relevant")~1, 
                                      TRUE~0)) %>% 
     mutate(policy4_policy4=case_when(overal_relevant_policy4=="relevant"~1,
+                                     TRUE~0)) %>% 
+    mutate(policy4_policy0=case_when((overal_relevant_policy4=="relevant" & overal_relevant_policy0=="relevant")~1, 
                                      TRUE~0)) %>% 
     mutate(policy4_policy1=case_when((overal_relevant_policy4=="relevant" & overal_relevant_policy1=="relevant")~1, 
                                      TRUE~0)) %>% 
@@ -379,9 +411,15 @@ calc_policy_salience<-function(policy_summary){
   
   
   salience_sum<-salience_data %>% 
-    select(policy1_policy1:policy4_policy3) %>%
+    select(policy0_policy0:policy4_policy3) %>%
     ungroup() %>% 
     summarise_all(list(sum)) 
+  
+  policy0_salience<-salience_sum %>% 
+    select(policy0_policy0:policy0_policy4) %>% 
+    pivot_longer(policy0_policy0:policy0_policy4,names_to = "type",names_prefix = "policy0_",values_to="total") %>% 
+    mutate(policy0=round(100*(total/max(total)))) %>% 
+    rename(policy0_num=total)
   
   policy1_salience<-salience_sum %>% 
     select(policy1_policy1:policy1_policy4) %>% 
@@ -407,7 +445,8 @@ calc_policy_salience<-function(policy_summary){
     mutate(policy4=round(100*(total/max(total))))%>% 
     rename(policy4_num=total) 
   
-  salience_percentage<-policy1_salience %>% 
+  salience_percentage<-policy0_salience %>% 
+    left_join(policy1_salience) %>% 
     left_join(policy2_salience) %>% 
     left_join(policy3_salience) %>% 
     left_join(policy4_salience)
@@ -415,7 +454,8 @@ calc_policy_salience<-function(policy_summary){
   #writexl::write_xlsx(salience_percentage,"salience_percentage.xlsx")
   
   plot_data<-salience_percentage%>%
-    mutate(type=case_when(type=="policy1"~"policy A",
+    mutate(type=case_when(type=="policy0"~"policy Aa",
+                          type=="policy1"~"policy Ab",
                           type=="policy2"~"policy B",
                           type=="policy3"~"policy C",
                           type=="policy4"~"policy D")) %>% 
@@ -424,27 +464,31 @@ calc_policy_salience<-function(policy_summary){
     mutate(text_n="(n = ") %>% 
     mutate(percent="%") %>%
     mutate(end_bracket =")") %>% 
+    unite("policy0_text",c("policy0", "percent","text_n","policy0_num"),sep=" ", remove = F) %>% 
     unite("policy1_text",c("policy1", "percent","text_n","policy1_num"),sep=" ", remove = F) %>% 
     unite("policy2_text",c("policy2", "percent","text_n","policy2_num"),sep=" ", remove = F) %>% 
     unite("policy3_text",c("policy3", "percent","text_n","policy3_num"),sep=" ", remove = F) %>% 
     unite("policy4_text",c("policy4", "percent","text_n","policy4_num"),sep=" ", remove = F) %>%
+    unite("policy0_text2",c("policy0_text","end_bracket"),sep="",remove=F) %>% 
     unite("policy1_text2",c("policy1_text","end_bracket"),sep="",remove=F) %>% 
     unite("policy2_text2",c("policy2_text","end_bracket"),sep="",remove=F) %>% 
     unite("policy3_text2",c("policy3_text","end_bracket"),sep="",remove=F) %>% 
     unite("policy4_text2",c("policy4_text","end_bracket"),sep="",remove=F) %>% 
+    unite("policy0_full",c("policy0_text2","policy0"),sep="_",remove=T) %>% 
     unite("policy1_full",c("policy1_text2","policy1"),sep="_",remove=T) %>% 
     unite("policy2_full",c("policy2_text2","policy2"),sep="_",remove=T) %>% 
     unite("policy3_full",c("policy3_text2","policy3"),sep="_",remove=T) %>% 
     unite("policy4_full",c("policy4_text2","policy4"),sep="_",remove=T) %>% 
-    select(!c(policy1_num,policy2_num,policy3_num,policy4_num,text_n,percent,end_bracket,policy1_text,policy2_text,policy3_text,policy4_text)) %>% 
+    select(!c(policy0_num,policy1_num,policy2_num,policy3_num,policy4_num,text_n,percent,end_bracket,policy0_text,policy1_text,policy2_text,policy3_text,policy4_text)) %>% 
     pivot_longer(
-      cols = policy1_full:policy4_full,
+      cols = policy0_full:policy4_full,
       names_to = c("policy", "remove"), 
       names_pattern = "(.*)_(.*)",
       values_to = "full") %>% 
     separate(full,c("text","percentage"),remove=F,sep="_") %>% 
     mutate(percentage=as.numeric(percentage)) %>% 
-    mutate(policy=case_when(policy=="policy1"~"policy A",
+    mutate(policy=case_when(policy=="policy0"~"policy Aa",
+                            policy=="policy1"~"policy Ab",
                             policy=="policy2"~"policy B",
                             policy=="policy3"~"policy C",
                             policy=="policy4"~"policy D")) %>% 
@@ -460,7 +504,8 @@ calc_policy_salience<-function(policy_summary){
     ylab("")+
     labs(fill = "Overlap (%)")
   
-  #ggsave(salience_plot,file="./Plots/final_plots/salience_manual.svg")
+  #Go from this ugly plot to nicer in Inkscape
+  ggsave(salience_plot,file="./Plots/salience_rough.svg")
   
   return(salience_percentage)
 }
@@ -480,7 +525,8 @@ map_plot<-function(policy_summary){
     select(iso_a3,geometry) %>% 
     rename(iso3c=iso_a3) %>% 
     left_join(policy_summary) %>% 
-    mutate_at(vars(policy_1,policy_2,policy_3,policy_4), as.factor) %>% 
+    mutate_at(vars(policy_0,policy_1,policy_2,policy_3,policy_4), as.factor) %>% 
+    mutate(policy_0 = fct_relevel(policy_0, "highly_relevant", "relevant","less_relevant","missing_data")) %>% 
     mutate(policy_1 = fct_relevel(policy_1, "highly_relevant", "relevant","less_relevant","missing_data")) %>% 
     mutate(policy_2 = fct_relevel(policy_2, "highly_relevant","relevant","less_relevant","missing_data")) %>% 
     mutate(policy_3 = fct_relevel(policy_3, "highly_relevant", "relevant","less_relevant","missing_data")) %>% 
@@ -488,6 +534,18 @@ map_plot<-function(policy_summary){
     filter(!is.na(policy_1))
   
   cols <- c("highly_relevant" = "#012998", "relevant" = "#205BFE","less_relevant" = "#AEC3FF", "missing_data" = "grey")
+  
+  map0<-ggplot(data = BF_world) +
+    geom_sf(aes(fill = policy_0))+
+    scale_fill_manual(values=cols,labels = c("Highly relevant", "Relevant", "Less relevant","Missing data"))+
+    theme(legend.position="top")+
+    labs(fill="")+ #For facet
+    theme(legend.key.size = unit(0.2, 'cm'), #change legend key size
+          legend.key.height = unit(0.2, 'cm'), #change legend key height
+          legend.key.width = unit(0.2, 'cm'), #change legend key width
+          legend.text = element_text(size=8)) #change legend text font size
+  #labs(fill = "Reducing nutrient deficiencies")
+  
   
   map1<-ggplot(data = BF_world) +
     geom_sf(aes(fill = policy_1))+
@@ -533,12 +591,15 @@ map_plot<-function(policy_summary){
           legend.text = element_text(size=8)) #change legend text font size
   #labs(fill = "Safeguarding food system contributions to climate change")
   
-  facet_labels<-c("A: Reducing nutrient deficiencies", "B: Reducing cardiovascular disease","C: Reducing environmental footprints","D: Safeguarding food system contributions")
+  facet_labels<-c("Aa: Reducing B12 deficiencies", "B: Reducing cardiovascular disease","Ab: Reducing omega3 deficiencies",
+                  "C: Reducing environmental footprints"," ","D: Safeguarding food system contributions")
   
-  facet_map<-plot_grid(map1, map2,map3,map4,ncol=2,labels=facet_labels,hjust = 0, label_x = 0.01)
+  facet_map<-plot_grid(map0,map2,map1,map3,NULL,map4,ncol=2,labels=facet_labels,hjust = 0, label_x = 0.01)
   
-  #ggsave(facet_map,file="./Plots/final_plots/map_plot.png",dpi=300, height = 18,width = 18,units = "cm")
-  #ggsave(facet_map,file="./Plots/final_plots/map_plot.svg",dpi=300, height = 18,width = 18,units = "cm")
+  #Rework layout in Inkscape to more symmetric
+  
+  #ggsave(facet_map,file="./Plots/map_plot.png",dpi=300, height = 18,width = 18,units = "cm")
+  ggsave(facet_map,file="./Plots/map_plot.svg",dpi=300, height = 24,width = 18,units = "cm")
   
   return(facet_map)
   
@@ -567,6 +628,48 @@ map_plot<-function(policy_summary){
 #***********************************
 
 #12 different classification functions ----
+#0.1 - policy 0 
+make_classification_b12_p0<-function(value,clean_data){
+  
+  data<-clean_data %>% 
+    mutate(bf_availability_kgcap_year=prod_kgpercap_year + import_kg_percap_year) %>% 
+    mutate(SEV_B12_inclusion = case_when((SEV_vitB12 >= value) ~ 1,
+                                         (SEV_vitB12 < value) ~ 0,
+                                         TRUE~NA_real_)) %>%
+    mutate(availability_inclusion = case_when((bf_availability_kgcap_year >= 8) ~ 1, 
+                                              (bf_availability_kgcap_year < 8) ~ 0,
+                                              TRUE~NA_real_)) %>%
+    rowwise() %>% 
+    mutate(policy_0=as.factor(case_when((SEV_B12_inclusion==1 & availability_inclusion ==1) ~"highly_relevant",
+                                        (SEV_B12_inclusion==1& availability_inclusion !=1) ~"relevant",
+                                        (SEV_B12_inclusion==0) ~ "less_relevant",
+                                        TRUE ~"missing_data"))) %>%
+    select(policy_0) %>% 
+    rename_with(.fn = ~paste0("value_",value),.cols = policy_0) 
+  
+}
+#***************************************************
+#0.2 - policy 0
+make_classification_bf_p0<-function(value,clean_data){
+  
+  data<-clean_data %>% 
+    mutate(bf_availability_kgcap_year=prod_kgpercap_year + import_kg_percap_year) %>% 
+    mutate(SEV_B12_inclusion = case_when((SEV_vitB12 >= 10) ~ 1,
+                                         (SEV_vitB12 < 10) ~ 0,
+                                         TRUE~NA_real_)) %>%
+    mutate(availability_inclusion = case_when((bf_availability_kgcap_year >= value) ~ 1, 
+                                              (bf_availability_kgcap_year < value) ~ 0,
+                                              TRUE~NA_real_)) %>%
+    rowwise() %>% 
+    mutate(policy_0=as.factor(case_when((SEV_B12_inclusion==1 & availability_inclusion ==1) ~"highly_relevant",
+                                        (SEV_B12_inclusion==1 & availability_inclusion !=1) ~"relevant",
+                                        (SEV_B12_inclusion==0) ~ "less_relevant",
+                                        TRUE ~"missing_data"))) %>%
+    select(policy_0) %>% 
+    rename_with(.fn = ~paste0("value_",value),.cols = policy_0) 
+  
+}
+
 #1 - policy 1
 make_classification_o3_p1<-function(value,clean_data){
   
@@ -575,49 +678,13 @@ make_classification_o3_p1<-function(value,clean_data){
     mutate(SEV_omega3_inclusion = case_when((SEV_omega3 >= value) ~ 1,    
                                             (SEV_omega3 < value) ~ 0,    
                                             TRUE~NA_real_)) %>% 
-    mutate(SEV_B12_inclusion = case_when((SEV_vitB12 >= 10) ~ 1,
-                                         (SEV_vitB12 < 10) ~ 0,
-                                         TRUE~NA_real_)) %>%
     mutate(availability_inclusion = case_when((bf_availability_kgcap_year >= 8) ~ 1, 
                                               (bf_availability_kgcap_year < 8) ~ 0,
                                               TRUE~NA_real_)) %>%
     rowwise() %>% 
-    mutate(SEV_inclusion = case_when((SEV_B12_inclusion==1 & SEV_omega3_inclusion==1)~2,
-                                     (SEV_B12_inclusion==1 | SEV_omega3_inclusion==1)~1,
-                                     (SEV_B12_inclusion==0 & SEV_omega3_inclusion==0)~0,
-                                     TRUE~NA_real_)) %>% 
-    mutate(policy_1=as.factor(case_when((SEV_inclusion>0 & availability_inclusion ==1) ~"highly_relevant",
-                                        (SEV_inclusion>0 & availability_inclusion !=1) ~"relevant",
-                                        (SEV_inclusion==0) ~ "less_relevant",
-                                        TRUE ~"missing_data"))) %>%
-    select(policy_1) %>% 
-    rename_with(.fn = ~paste0("value_",value),.cols = policy_1) 
-  
-}
-
-#**
-#2 - policy 1
-make_classification_b12_p1<-function(value,clean_data){
-  
-  data<-clean_data %>% 
-    mutate(bf_availability_kgcap_year=prod_kgpercap_year + import_kg_percap_year) %>% 
-    mutate(SEV_omega3_inclusion = case_when((SEV_omega3 >=10 ) ~ 1,   
-                                            (SEV_omega3 < 10) ~ 0,     
-                                            TRUE~NA_real_)) %>% 
-    mutate(SEV_B12_inclusion = case_when((SEV_vitB12 >= value) ~ 1,
-                                         (SEV_vitB12 < value) ~ 0,
-                                         TRUE~NA_real_)) %>%
-    mutate(availability_inclusion = case_when((bf_availability_kgcap_year >= 8) ~ 1, 
-                                              (bf_availability_kgcap_year < 8) ~ 0,
-                                              TRUE~NA_real_)) %>%
-    rowwise() %>% 
-    mutate(SEV_inclusion = case_when((SEV_B12_inclusion==1 & SEV_omega3_inclusion==1)~2,
-                                     (SEV_B12_inclusion==1 | SEV_omega3_inclusion==1)~1,
-                                     (SEV_B12_inclusion==0 & SEV_omega3_inclusion==0)~0,
-                                     TRUE~NA_real_)) %>% 
-    mutate(policy_1=as.factor(case_when((SEV_inclusion>0 & availability_inclusion ==1) ~"highly_relevant",
-                                        (SEV_inclusion>0 & availability_inclusion !=1) ~"relevant",
-                                        (SEV_inclusion==0) ~ "less_relevant",
+    mutate(policy_1=as.factor(case_when((SEV_omega3_inclusion==1 & availability_inclusion ==1) ~"highly_relevant",
+                                        (SEV_omega3_inclusion==1 & availability_inclusion !=1) ~"relevant",
+                                        (SEV_omega3_inclusion==0) ~ "less_relevant",
                                         TRUE ~"missing_data"))) %>%
     select(policy_1) %>% 
     rename_with(.fn = ~paste0("value_",value),.cols = policy_1) 
@@ -632,20 +699,13 @@ make_classification_bf_p1<-function(value,clean_data){
     mutate(SEV_omega3_inclusion = case_when((SEV_omega3 >=10 ) ~ 1,   
                                             (SEV_omega3 < 10) ~ 0,     
                                             TRUE~NA_real_)) %>% 
-    mutate(SEV_B12_inclusion = case_when((SEV_vitB12 >= 10) ~ 1,
-                                         (SEV_vitB12 < 10) ~ 0,
-                                         TRUE~NA_real_)) %>%
     mutate(availability_inclusion = case_when((bf_availability_kgcap_year >= value) ~ 1, 
                                               (bf_availability_kgcap_year < value) ~ 0,
                                               TRUE~NA_real_)) %>%
     rowwise() %>% 
-    mutate(SEV_inclusion = case_when((SEV_B12_inclusion==1 & SEV_omega3_inclusion==1)~2,
-                                     (SEV_B12_inclusion==1 | SEV_omega3_inclusion==1)~1,
-                                     (SEV_B12_inclusion==0 & SEV_omega3_inclusion==0)~0,
-                                     TRUE~NA_real_)) %>% 
-    mutate(policy_1=as.factor(case_when((SEV_inclusion>0 & availability_inclusion ==1) ~"highly_relevant",
-                                        (SEV_inclusion>0 & availability_inclusion !=1) ~"relevant",
-                                        (SEV_inclusion==0) ~ "less_relevant",
+    mutate(policy_1=as.factor(case_when((SEV_omega3_inclusion==1 & availability_inclusion ==1) ~"highly_relevant",
+                                        (SEV_omega3_inclusion==1& availability_inclusion !=1) ~"relevant",
+                                        (SEV_omega3_inclusion==0) ~ "less_relevant",
                                         TRUE ~"missing_data"))) %>%
     select(policy_1) %>% 
     rename_with(.fn = ~paste0("value_",value),.cols = policy_1) 
@@ -913,9 +973,55 @@ make_barplot_data<-function(sensitivity_data){
 }
 #*************************************************************
 #Run sensitivity plots -----
+#Make policy 0 sensitivity plot outputs
+
+make_policy0_sensitivity<-function(b12_barplot_data,bf_p0_barplot_data){
+  
+  cols <- c("highly_relevant" = "#012998", "relevant" = "#205BFE","less_relevant" = "#AEC3FF")
+  
+  b12_plot<-ggplot(b12_barplot_data, aes(fill=outcome, y=n, x=value_number)) + 
+    geom_bar(position="stack", stat="identity")+
+    theme_classic()+
+    scale_y_continuous(n.breaks=7, name ="No. of countries")+
+    scale_x_continuous(n.breaks=8, name ="Vitamin B12 threshold values")+
+    scale_fill_manual(values=cols)+
+    theme(legend.position = "top")+
+    geom_vline(aes(xintercept=10,col="red")) #Ordinary cut-off - need to specify 
+  
+  bf_p0_plot<-ggplot(bf_p0_barplot_data, aes(fill=outcome, y=n, x=value_number)) + 
+    geom_bar(position="stack", stat="identity")+
+    theme_classic()+
+    scale_y_continuous(n.breaks=7, name ="No. of countries")+
+    scale_x_continuous(n.breaks=9, name ="Blue Foods threshold values")+
+    scale_fill_manual(values=cols)+
+    theme(legend.position = "top")+
+    geom_vline(aes(xintercept=8,col="red")) #Ordinary cut-off - need to specify 
+  
+  bf_p0_plot_short<-ggplot(bf_p0_barplot_data, aes(fill=outcome, y=n, x=value_number)) + 
+    geom_bar(position="stack", stat="identity")+
+    theme_classic()+
+    scale_y_continuous(n.breaks=7, name ="No. of countries")+
+    scale_x_continuous(n.breaks=10, name ="Blue Foods threshold values",limits = c(0,250))+
+    scale_fill_manual(values=cols)+
+    theme(legend.position = "top")+
+    geom_vline(aes(xintercept=8,col="red")) #Ordinary cut-off - need to specify 
+  
+  policy0_plots<-plot_grid(b12_plot,bf_p0_plot,bf_p0_plot_short,ncol = 2,
+                           labels = c("Vitamin B12","Blue Foods - full", "Blue Foods - cropped"),
+                           hjust = 0, label_x = 0.01)
+ 
+  ggsave(policy0_plots,file="./Plots/sensitivity_plots/policy0_sensitivity.png",dpi=300, height = 18.3,width = 18.3,units = "cm")
+  ggsave(policy0_plots,file="./Plots/sensitivity_plots/policy0_sensitivity.svg",dpi=300, height = 18.3,width = 18.3,units = "cm")
+  
+  return(policy0_plots)
+  
+}
+#*************************************************************
+
+
 #Make policy 1 sensitivity plot outputs
 
-make_policy1_sensitivity<-function(omega3_barplot_data,b12_barplot_data,bf_p1_barplot_data){
+make_policy1_sensitivity<-function(omega3_barplot_data,bf_p1_barplot_data){
   
   cols <- c("highly_relevant" = "#012998", "relevant" = "#205BFE","less_relevant" = "#AEC3FF")
   
@@ -924,15 +1030,6 @@ make_policy1_sensitivity<-function(omega3_barplot_data,b12_barplot_data,bf_p1_ba
     theme_classic()+
     scale_y_continuous(n.breaks=7, name ="No. of countries")+
     scale_x_continuous(n.breaks=8, name ="Omega-3 threshold values")+
-    scale_fill_manual(values=cols)+
-    theme(legend.position = "top")+
-    geom_vline(aes(xintercept=10,col="red")) #Ordinary cut-off - need to specify 
-  
-  b12_plot<-ggplot(b12_barplot_data, aes(fill=outcome, y=n, x=value_number)) + 
-    geom_bar(position="stack", stat="identity")+
-    theme_classic()+
-    scale_y_continuous(n.breaks=7, name ="No. of countries")+
-    scale_x_continuous(n.breaks=8, name ="Vitamin B12 threshold values")+
     scale_fill_manual(values=cols)+
     theme(legend.position = "top")+
     geom_vline(aes(xintercept=10,col="red")) #Ordinary cut-off - need to specify 
@@ -955,12 +1052,12 @@ make_policy1_sensitivity<-function(omega3_barplot_data,b12_barplot_data,bf_p1_ba
     theme(legend.position = "top")+
     geom_vline(aes(xintercept=8,col="red")) #Ordinary cut-off - need to specify 
   
-  policy1_plots<-plot_grid(omega3_plot,b12_plot,bf_p1_plot,bf_p1_plot_short,ncol = 2,
-                           labels = c("Omega-3","Vitamin B12","Blue Foods - full", "Blue Foods - cropped"),
+  policy1_plots<-plot_grid(omega3_plot,bf_p1_plot,bf_p1_plot_short,ncol = 2,
+                           labels = c("Omega-3","Blue Foods - full", "Blue Foods - cropped"),
                            hjust = 0, label_x = 0.01)
   
-  #ggsave(policy1_plots,file="./Plots/sensitivity_plots/policy1_sensitivity.png",dpi=300, height = 18,width = 18,units = "cm")
-  #ggsave(policy1_plots,file="./Plots/sensitivity_plots/policy1_sensitivity.svg",dpi=300, height = 18,width = 18,units = "cm")
+  ggsave(policy1_plots,file="./Plots/sensitivity_plots/policy1_sensitivity.png",dpi=300, height = 18.3,width = 18.3,units = "cm")
+  ggsave(policy1_plots,file="./Plots/sensitivity_plots/policy1_sensitivity.svg",dpi=300, height = 18.3,width = 18.3,units = "cm")
   
   return(policy1_plots)
   
@@ -976,7 +1073,7 @@ make_policy2_sensitivity<-function(redmeat_barplot_data,daly_barplot_data,bf_p2_
     scale_y_continuous(n.breaks=7, name ="No. of countries")+
     scale_x_continuous(n.breaks=8, name ="Red meat threshold values")+
     scale_fill_manual(values=cols)+
-    theme(legend.position = "none")+
+    theme(legend.position = "top")+
     geom_vline(aes(xintercept=50,col="red")) #Ordinary cut-off - need to specify 
   
   daly_plot<-ggplot(daly_barplot_data, aes(fill=outcome, y=n, x=value_number)) + 
@@ -985,7 +1082,7 @@ make_policy2_sensitivity<-function(redmeat_barplot_data,daly_barplot_data,bf_p2_
     scale_y_continuous(n.breaks=7, name ="No. of countries")+
     scale_x_continuous(n.breaks=8, name ="DALY threshold values")+
     scale_fill_manual(values=cols)+
-    theme(legend.position = "none")+
+    theme(legend.position = "top")+
     geom_vline(aes(xintercept=0.05,col="red")) #Ordinary cut-off - need to specify 
   
   bf_p2_plot<-ggplot(bf_p2_barplot_data, aes(fill=outcome, y=n, x=value_number)) + 
@@ -994,7 +1091,7 @@ make_policy2_sensitivity<-function(redmeat_barplot_data,daly_barplot_data,bf_p2_
     scale_y_continuous(n.breaks=7, name ="No. of countries")+
     scale_x_continuous(n.breaks=9, name ="Blue Foods threshold values")+
     scale_fill_manual(values=cols)+
-    theme(legend.position = "none")+
+    theme(legend.position = "top")+
     geom_vline(aes(xintercept=8,col="red")) #Ordinary cut-off - need to specify 
   
   
@@ -1004,15 +1101,15 @@ make_policy2_sensitivity<-function(redmeat_barplot_data,daly_barplot_data,bf_p2_
     scale_y_continuous(n.breaks=7, name ="No. of countries")+
     scale_x_continuous(n.breaks=10, name ="Blue Foods threshold values",limits = c(0,250))+
     scale_fill_manual(values=cols)+
-    theme(legend.position = "none")+
+    theme(legend.position = "top")+
     geom_vline(aes(xintercept=8,col="red")) #Ordinary cut-off - need to specify 
   
   policy2_plots<-plot_grid(redmeat_plot,daly_plot,bf_p2_plot,bf_p2_plot_short,ncol = 2,
                            labels = c("Red meat","DALY","Blue Foods - full", "Blue Foods - cropped"),
                            hjust = 0, label_x = 0.01)
   
-  #ggsave(policy2_plots,file="./Plots/sensitivity_plots/policy2_sensitivity.png",dpi=300, height = 18,width = 18,units = "cm")
-  #ggsave(policy2_plots,file="./Plots/sensitivity_plots/policy2_sensitivity.svg",dpi=300, height = 18,width = 18,units = "cm")
+  ggsave(policy2_plots,file="./Plots/sensitivity_plots/policy2_sensitivity.png",dpi=300, height = 18.3,width = 18.3,units = "cm")
+  ggsave(policy2_plots,file="./Plots/sensitivity_plots/policy2_sensitivity.svg",dpi=300, height = 18.3,width = 18.3,units = "cm")
   
   return(policy2_plots)
   
@@ -1028,7 +1125,7 @@ make_policy3_sensitivity<-function(rummeat_barplot_data,bf_p3_barplot_data){
     scale_y_continuous(n.breaks=7, name ="No. of countries")+
     scale_x_continuous(n.breaks=8, name ="Ruminant meat threshold values")+
     scale_fill_manual(values=cols)+
-    theme(legend.position = "none")+
+    theme(legend.position = "top")+
     geom_vline(aes(xintercept=7,col="red")) #Ordinary cut-off - need to specify 
   
   bf_p3_plot<-ggplot(bf_p3_barplot_data, aes(fill=outcome, y=n, x=value_number)) + 
@@ -1037,7 +1134,7 @@ make_policy3_sensitivity<-function(rummeat_barplot_data,bf_p3_barplot_data){
     scale_y_continuous(n.breaks=7, name ="No. of countries")+
     scale_x_continuous(n.breaks=9, name ="Blue Foods threshold values")+
     scale_fill_manual(values=cols)+
-    theme(legend.position = "none")+
+    theme(legend.position = "top")+
     geom_vline(aes(xintercept=8,col="red")) #Ordinary cut-off - need to specify 
   
   
@@ -1047,15 +1144,15 @@ make_policy3_sensitivity<-function(rummeat_barplot_data,bf_p3_barplot_data){
     scale_y_continuous(n.breaks=7, name ="No. of countries")+
     scale_x_continuous(n.breaks=10, name ="Blue Foods threshold values",limits = c(0,250))+
     scale_fill_manual(values=cols)+
-    theme(legend.position = "none")+
+    theme(legend.position = "top")+
     geom_vline(aes(xintercept=8,col="red")) #Ordinary cut-off - need to specify 
   
   policy3_plots<-plot_grid(rummeat_plot,NA,bf_p3_plot,bf_p3_plot_short,ncol = 2,
                            labels = c("Ruminant meat","","Blue Foods - full", "Blue Foods - cropped"),
                            hjust = 0, label_x = 0.01)
   
-  #ggsave(policy3_plots,file="./Plots/sensitivity_plots/policy3_sensitivity.png",dpi=300, height = 18,width = 18,units = "cm")
-  #ggsave(policy3_plots,file="./Plots/sensitivity_plots/policy3_sensitivity.svg",dpi=300, height = 18,width = 18,units = "cm")
+  ggsave(policy3_plots,file="./Plots/sensitivity_plots/policy3_sensitivity.png",dpi=300, height = 18.3,width = 18.3,units = "cm")
+  ggsave(policy3_plots,file="./Plots/sensitivity_plots/policy3_sensitivity.svg",dpi=300, height = 18.3,width = 18.3,units = "cm")
   
   return(policy3_plots)
   
@@ -1071,7 +1168,7 @@ make_policy4_sensitivity<-function(jobs_barplot_data,export_barplot_data,consump
     scale_y_continuous(n.breaks=7, name ="No. of countries")+
     scale_x_continuous(n.breaks=8, name ="Jobs threshold values")+
     scale_fill_manual(values=cols)+
-    theme(legend.position = "none")+
+    theme(legend.position = "top")+
     geom_vline(aes(xintercept=0.01,col="red")) #Ordinary cut-off - need to specify 
   
   export_plot<-ggplot(export_barplot_data, aes(fill=outcome, y=n, x=value_number)) + 
@@ -1080,7 +1177,7 @@ make_policy4_sensitivity<-function(jobs_barplot_data,export_barplot_data,consump
     scale_y_continuous(n.breaks=7, name ="No. of countries")+
     scale_x_continuous(n.breaks=8, name ="Export threshold values")+
     scale_fill_manual(values=cols)+
-    theme(legend.position = "none")+
+    theme(legend.position = "top")+
     geom_vline(aes(xintercept=0.03,col="red")) #Ordinary cut-off - need to specify 
   
   consump_plot<-ggplot(consump_barplot_data, aes(fill=outcome, y=n, x=value_number)) + 
@@ -1089,7 +1186,7 @@ make_policy4_sensitivity<-function(jobs_barplot_data,export_barplot_data,consump
     scale_y_continuous(n.breaks=7, name ="No. of countries")+
     scale_x_continuous(n.breaks=8, name ="Consumption threshold values")+
     scale_fill_manual(values=cols)+
-    theme(legend.position = "none")+
+    theme(legend.position = "top")+
     geom_vline(aes(xintercept=0.2,col="red")) #Ordinary cut-off - need to specify 
   
   climate_plot<-ggplot(climate_barplot_data, aes(fill=outcome, y=n, x=value_number)) + 
@@ -1098,15 +1195,15 @@ make_policy4_sensitivity<-function(jobs_barplot_data,export_barplot_data,consump
     scale_y_continuous(n.breaks=7, name ="No. of countries")+
     scale_x_continuous(n.breaks=8, name ="Climate Hazard threshold values")+
     scale_fill_manual(values=cols)+
-    theme(legend.position = "none")+
+    theme(legend.position = "top")+
     geom_vline(aes(xintercept=50,col="red")) #Ordinary cut-off - need to specify 
   
   policy4_plots<-plot_grid(jobs_plot,export_plot,consump_plot,climate_plot,ncol=2,
                            labels = c("Jobs","Export","Consumption","Climate"),
                            hjust = 0, label_x = 0.01)
   
-  #ggsave(policy4_plots,file="./Plots/sensitivity_plots/policy4_sensitivity.png",dpi=300, height = 18,width = 18,units = "cm")
-  #ggsave(policy4_plots,file="./Plots/sensitivity_plots/policy4_sensitivity.svg",dpi=300, height = 18,width = 18,units = "cm")
+  ggsave(policy4_plots,file="./Plots/sensitivity_plots/policy4_sensitivity.png",dpi=300, height = 18.3,width = 18.3,units = "cm")
+  ggsave(policy4_plots,file="./Plots/sensitivity_plots/policy4_sensitivity.svg",dpi=300, height = 18.3,width = 18.3,units = "cm")
   
   return(policy4_plots)
   
@@ -1221,6 +1318,7 @@ make_hist_facet<-function(policy_data){
   
   facet_plot<-plot_grid(b12_hist,omega3_hist,BF_hist,Red_meat_hist,daly_hist, ruminant_hist,jobs_hist,export_hist,consump_hist,climate_hist,ncol=2)
   
+  ggsave(facet_plot,file="./Plots/sensitivity_plots/hist_facet.svg",dpi=300, height = 28,width = 18,units = "cm")
   #ggsave(facet_plot,file="./Plots/sensitivity_plots/hist_facet.png",dpi=300, height = 28,width = 18,units = "cm")
   
   return(facet_plot)
