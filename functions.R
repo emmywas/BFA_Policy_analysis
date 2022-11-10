@@ -180,7 +180,6 @@ assigning_recommendation<-function(clean_data){
   
   #Policy inclusion criteria
   #**************************
-  #NEED TO UPDATE COMMENTS ----
   #Policy 0 - 
   #SEV_vitB12 AND (prod_kgpercap_year OR import_kg_percap_year)
   
