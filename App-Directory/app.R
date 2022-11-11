@@ -107,15 +107,9 @@ ui <- navbarPage(title = "Interactive Data Tool", fluid = TRUE,
                                               "Countries where missing data precludes analysis can focus attention on collection of key statistics that will improve understanding of the role of blue foods can play in a nation."
                               )))),
                  #------------------------------------------------------
-                 tabPanel("Policy Overview", 
-                          tags$iframe(style="height:1000px; width:100%", 
-                                      src="Supplementary_Table_S2.pdf")),
-                 
-                 #------------------------------------------------------
-                 tabPanel("Variable Distribution", 
-                          tags$iframe(style="height:1000px; width:100%", 
-                                      src="Supplementary_Figure_S6.pdf")),
-                 
+                 tabPanel("Policy Objective Overview",
+                          img(src = "policy_overview.png", height = 700, width = 1000)),
+                        
                  #--------------------------------------------------
                  tabPanel(title="Policy maps",
                           titlePanel("Policy objectives maps"),
@@ -208,7 +202,18 @@ ui <- navbarPage(title = "Interactive Data Tool", fluid = TRUE,
                               fluidRow(
                                 column(6,plotOutput("fourth_plot", height = "100px")))
                             )
-                          ))
+                          )),
+                 
+                 #------------------------------------------------------
+                 tabPanel("Criteria for assessing policy relevance", 
+                          tags$iframe(style="height:1000px; width:100%", 
+                                      src="Supplementary_Table_S2.pdf")),
+                 
+                 #------------------------------------------------------
+                 tabPanel("Variable Distribution", 
+                          tags$iframe(style="height:1000px; width:100%", 
+                                      src="Extended_Data_Figure_1.pdf"))
+                 
 )
 
 
